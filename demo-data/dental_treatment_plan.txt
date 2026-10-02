@@ -1,0 +1,34 @@
+================================================================================
+APEX ADVANCED DENTAL CARE & ENDODONTICS
+820 Park Avenue, 4th Floor, Metropolis, NY 10028
+Tel: (555) 018-9900
+================================================================================
+
+CLINICAL DENTAL EXAMINATION & TREATMENT PLAN
+
+PATIENT: Vance, Eleanor R.
+DOB: 1984-06-14 | Chart #: D-9941
+Date of Examination: 2026-09-10
+Examining Clinician: Kevin Miller, DDS
+
+CHIEF COMPLAINT:
+"Sharp, lingering ache in lower left jaw when chewing food and drinking cold liquids for the past 10 days."
+
+CLINICAL & RADIOGRAPHIC FINDINGS:
+- Periapical radiograph reveals deep recurrent carious lesion extending to the pulp chamber of Tooth #36 (Universal ISO designation: Mandibular left first molar).
+- Periodontal probing depths: Normal (2-3 mm) throughout quadrant.
+- Cold sensibility test (Endo-Ice): Severe lingering response (> 15 seconds) on Tooth #36.
+- Percussion test: Mild tenderness on Tooth #36. Adjacent teeth (#35, #37) within normal physiological limits.
+
+DIAGNOSIS:
+Symptomatic Irreversible Pulpitis with Symptomatic Apical Periodontitis of Tooth #36.
+
+RECOMMENDED TREATMENT PLAN:
+1. Endodontic Root Canal Therapy on Tooth #36 followed by full porcelain-fused-to-zirconia crown restoration.
+2. Alternative Option: If patient elects not to pursue endodontic salvage, surgical extraction of Tooth #36 followed by bone graft and future implant restoration.
+3. Referral to Oral & Maxillofacial Surgery for specialized surgical evaluation.
+
+Signed:
+Kevin Miller, DDS (Apex Dental Care)
+Date: 2026-09-10
+================================================================================

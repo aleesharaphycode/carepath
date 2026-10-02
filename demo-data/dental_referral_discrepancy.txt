@@ -1,0 +1,30 @@
+================================================================================
+METROPOLIS ORAL & MAXILLOFACIAL SURGERY PARTNERS
+1100 Central Boulevard, Suite 500, Metropolis, NY 10029
+Tel: (555) 014-4411 | Fax: (555) 014-4412
+================================================================================
+
+SPECIALIST CONSULTATION & SURGICAL INTAKE SLIP
+
+REFERRING CLINIC: Apex Advanced Dental Care
+REFERRING DENTIST: Kevin Miller, DDS
+CONSULTING SURGEON: Jonathan Vance-Avery, DMD, MD
+
+PATIENT IDENTIFICATION:
+Patient Name: Vance, Eleanor R.
+DOB: 1984-06-14 | Encounter Date: 2026-09-18
+Medical Record #: OMS-2026-8812
+
+PROCEDURAL REFERRAL ORDER SUMMARY:
+Patient presented for specialist surgical consultation regarding non-restorable mandibular molar pathology.
+Referring referral slip notes:
+"Please evaluate and perform surgical tooth extraction of Tooth #37 (Lower left second molar) with site preservation bone graft."
+
+CLINICAL SAFETY VERIFICATION AUDIT:
+Patient states primary throbbing symptom originated around the first molar. 
+*Note for attending clinical team: Cross-document mismatch identified between initial chart recommendation (Tooth #36) and surgery slip (Tooth #37). Confirm anatomical site with 3D CBCT before administering local anesthesia or surgical incision.*
+
+Signed:
+Jonathan Vance-Avery, DMD, MD
+Metropolis Oral & Maxillofacial Surgery
+================================================================================

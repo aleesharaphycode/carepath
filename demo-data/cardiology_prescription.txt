@@ -1,0 +1,48 @@
+================================================================================
+METROHEALTH CARDIOVASCULAR ASSOCIATES
+452 Medical Parkway, Suite 300, Metropolis, NY 10024
+Tel: (555) 019-2834 | Fax: (555) 019-2835
+================================================================================
+
+OUTPATIENT CLINICAL ENCOUNTER & PRESCRIPTION ORDER
+
+PATIENT INFORMATION:
+Name: Vance, Eleanor R.
+DOB: 1984-06-14 (Age: 42)
+Gender: Female
+Patient Record ID: SYN-PT-882194
+Date of Visit: 2026-08-15
+
+ATTENDING PHYSICIAN:
+Marcus Reynolds, MD, FACC (License #NY-489201)
+Department of Cardiology & Preventative Medicine
+
+CLINICAL IMPRESSIONS / DIAGNOSES:
+1. Essential (Primary) Hypertension [ICD-10: I10] - Active, stage 1.
+2. Type 2 Diabetes Mellitus without acute complications [ICD-10: E11.9] - Suboptimally controlled.
+3. Mixed Hyperlipidemia [ICD-10: E78.2] - Active.
+
+MEDICATION ORDERS & REGIMEN:
+1. Metformin Hydrochloride 500 mg Oral Tablet
+   - Sig: Take 1 tablet orally twice daily with breakfast and dinner.
+   - Dispense: 60 tablets (30-day supply with 5 refills).
+   - Clinical Indication: Glycemic control for Type 2 Diabetes Mellitus.
+
+2. Lisinopril 10 mg Oral Tablet
+   - Sig: Take 1 tablet orally once daily each morning.
+   - Dispense: 30 tablets (30-day supply with 5 refills).
+   - Clinical Indication: Blood pressure management.
+
+3. Atorvastatin Calcium 20 mg Oral Tablet
+   - Sig: Take 1 tablet orally once daily at bedtime.
+   - Dispense: 90 tablets (90-day supply with 3 refills).
+   - Clinical Indication: Primary atherosclerotic cardiovascular risk reduction.
+
+PATIENT INSTRUCTIONS & SAFETY NOTES:
+- Monitor home morning blood pressure (goal: < 130/80 mmHg).
+- Comprehensive metabolic panel and lipid panel scheduled in 6 weeks.
+- Routine outpatient cardiovascular review follow-up in 3 months (90 days).
+
+Physician Signature:
+Marcus Reynolds, MD [Electronically Signed on 2026-08-15 14:22 UTC]
+================================================================================

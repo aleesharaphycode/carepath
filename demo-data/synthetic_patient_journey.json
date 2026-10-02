@@ -1,0 +1,107 @@
+{
+  "scenario_name": "Eleanor Vance - Comprehensive Chronic Care & Surgical Journey",
+  "version": "1.0.0",
+  "description": "Sanitized synthetic patient scenario demonstrating cross-sprint intelligence: Multimodal document extraction, Chronological Timeline, AI Health Calendar, Bidirectional Source Linking, Cross-Document Discrepancy Detection, Family Dashboard Isolation, and Temporary QR Doctor Sharing.",
+  "patient_profile": {
+    "full_name": "Eleanor Vance",
+    "date_of_birth": "1984-06-14",
+    "gender": "Female",
+    "phone": "+1-555-019-2834"
+  },
+  "family_circle": {
+    "group_name": "Vance Household",
+    "members": [
+      {
+        "full_name": "Eleanor Vance",
+        "relationship": "Primary Account Holder",
+        "role": "owner",
+        "can_view_records": true,
+        "is_current_user": true
+      },
+      {
+        "full_name": "Lucas Vance",
+        "relationship": "Child",
+        "role": "member",
+        "can_view_records": true,
+        "is_current_user": false,
+        "date_of_birth": "2015-03-22",
+        "gender": "Male"
+      },
+      {
+        "full_name": "Margaret Vance",
+        "relationship": "Parent",
+        "role": "member",
+        "can_view_records": false,
+        "is_current_user": false,
+        "date_of_birth": "1952-11-09",
+        "gender": "Female"
+      }
+    ]
+  },
+  "documents": [
+    {
+      "file_name": "surgical_discharge_summary.txt",
+      "document_type": "discharge_summary",
+      "encounter_date": "2026-07-12",
+      "facility": "St. Jude Metropolitan Hospital",
+      "clinical_highlights": [
+        "Elective Laparoscopic Cholecystectomy performed on 2026-07-11",
+        "Follow-up wound evaluation projected in 2 weeks (2026-07-26)"
+      ]
+    },
+    {
+      "file_name": "cardiology_prescription.txt",
+      "document_type": "prescription",
+      "encounter_date": "2026-08-15",
+      "facility": "MetroHealth Cardiovascular Associates",
+      "clinical_highlights": [
+        "Metformin 500mg BID, Lisinopril 10mg QD, Atorvastatin 20mg QHS",
+        "Follow-up cardiovascular review in 3 months (2026-11-13)"
+      ]
+    },
+    {
+      "file_name": "metabolic_panel_report.txt",
+      "document_type": "lab_report",
+      "encounter_date": "2026-09-01",
+      "facility": "MetroHealth Clinical Pathology Laboratories",
+      "clinical_highlights": [
+        "Fasting Glucose 146 mg/dL (High)",
+        "HbA1c 7.2% (High)",
+        "Total Cholesterol 218 mg/dL (High)"
+      ]
+    },
+    {
+      "file_name": "dental_treatment_plan.txt",
+      "document_type": "dental_record",
+      "encounter_date": "2026-09-10",
+      "facility": "Apex Advanced Dental Care",
+      "clinical_highlights": [
+        "Irreversible pulpitis on Tooth #36 (Mandibular left first molar)",
+        "Recommended root canal therapy or extraction"
+      ]
+    },
+    {
+      "file_name": "dental_referral_discrepancy.txt",
+      "document_type": "referral_slip",
+      "encounter_date": "2026-09-18",
+      "facility": "Metropolis Oral & Maxillofacial Surgery",
+      "clinical_highlights": [
+        "Referral note references extraction of Tooth #37 instead of #36",
+        "Triggers Cross-Document Information Mismatch warning"
+      ]
+    }
+  ],
+  "mismatch_showcase": {
+    "entity_name": "Mandibular Molar Extraction Site",
+    "discrepancy_type": "anatomical_site",
+    "detected_values": ["Tooth #36", "Tooth #37"],
+    "safety_banner": "Potential Information Mismatch — Verify against original source.",
+    "neutral_explanation": "Different tooth numbers (Tooth #36 vs Tooth #37) were documented in source records from Apex Dental Care (2026-09-10) and Metropolis OMS (2026-09-18). Verify anatomical site with original imaging."
+  },
+  "doctor_consent_session": {
+    "recipient_name": "Dr. Sarah Jenkins - General Hospital Emergency Dept",
+    "scope": ["timeline", "medications", "investigations", "diagnoses"],
+    "duration_minutes": 60,
+    "status": "active"
+  }
+}

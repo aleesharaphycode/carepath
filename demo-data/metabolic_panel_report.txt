@@ -1,0 +1,58 @@
+================================================================================
+METROHEALTH CLINICAL PATHOLOGY LABORATORIES
+Accredited CAP / CLIA #33D0654321
+700 Bioscience Way, Metropolis, NY 10025
+================================================================================
+
+DIAGNOSTIC LABORATORY INVESTIGATION REPORT
+
+PATIENT DEMOGRAPHICS:
+Patient Name: Vance, Eleanor R.
+DOB: 1984-06-14 | Gender: Female
+Patient ID: SYN-PT-882194
+Ordering Provider: Marcus Reynolds, MD (Cardiovascular Associates)
+Specimen Collected: 2026-09-01 07:45 EDT (Fasting: 12 Hours)
+Report Verified: 2026-09-01 13:10 EDT
+
+--------------------------------------------------------------------------------
+COMPREHENSIVE METABOLIC PANEL (SERUM)
+Test Name                 Result      Reference Range      Units     Flag
+--------------------------------------------------------------------------------
+Glucose (Fasting)         146         70 - 99              mg/dL     [HIGH]
+Blood Urea Nitrogen (BUN) 14          7 - 20               mg/dL     Normal
+Creatinine (Serum)        0.95        0.50 - 1.10          mg/dL     Normal
+eGFR (CKD-EPI)            > 90        >= 60                mL/min    Normal
+Sodium                    139         135 - 145            mmol/L    Normal
+Potassium                 4.3         3.5 - 5.0            mmol/L    Normal
+Chloride                  102         98 - 107             mmol/L    Normal
+Carbon Dioxide (CO2)      24          22 - 29              mmol/L    Normal
+Calcium                   9.4         8.5 - 10.2           mg/dL     Normal
+Total Protein             7.1         6.0 - 8.3            g/dL      Normal
+Albumin                   4.2         3.5 - 5.0            g/dL      Normal
+Bilirubin, Total          0.6         0.2 - 1.2            mg/dL     Normal
+Alkaline Phosphatase      68          44 - 121             U/L       Normal
+AST (SGOT)                22          10 - 40              U/L       Normal
+ALT (SGPT)                26          9 - 46               U/L       Normal
+
+--------------------------------------------------------------------------------
+HEMOGLOBIN A1c (GLYCOSYLATED HEMOGLOBIN)
+Test Name                 Result      Reference Range      Units     Flag
+--------------------------------------------------------------------------------
+Hemoglobin A1c (HbA1c)    7.2         < 5.7                %         [HIGH]
+Estimated Avg Glucose     160         < 117                mg/dL     [HIGH]
+Interpretation: Consistent with suboptimally controlled Type 2 Diabetes Mellitus.
+
+--------------------------------------------------------------------------------
+LIPID FRACTIONATION PANEL
+Test Name                 Result      Reference Range      Units     Flag
+--------------------------------------------------------------------------------
+Total Cholesterol         218         < 200                mg/dL     [HIGH]
+Triglycerides             160         < 150                mg/dL     [BORDERLINE]
+HDL Cholesterol           48          > 50                 mg/dL     [LOW]
+LDL Cholesterol (Calc)    138         < 100                mg/dL     [HIGH]
+Non-HDL Cholesterol       170         < 130                mg/dL     [HIGH]
+
+LABORATORY PATHOLOGIST:
+Elena Rostova, MD, PhD (Board Certified Clinical Pathologist)
+Status: Final Official Verified Report
+================================================================================
