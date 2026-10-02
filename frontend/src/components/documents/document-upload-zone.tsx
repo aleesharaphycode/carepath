@@ -29,7 +29,7 @@ interface DocumentUploadZoneProps {
 }
 
 const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string; desc: string }[] = [
-  { value: "general", label: "General Medical Document", desc: "General health records, notes, or insurance" },
+  { value: "general", label: "General Medical Document", desc: "General health records or notes" },
   { value: "prescription", label: "Prescription", desc: "Doctor prescriptions and medication plans" },
   { value: "lab_report", label: "Lab / Diagnostic Report", desc: "Blood tests, pathology, and lab diagnostics" },
   { value: "discharge_summary", label: "Discharge Summary", desc: "Hospital admission & discharge records" },

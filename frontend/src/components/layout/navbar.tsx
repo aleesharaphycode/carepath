@@ -16,7 +16,6 @@ import {
   Sparkles,
   CreditCard,
   Stethoscope,
-  ShieldCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NavAuth } from "@/components/layout/nav-auth";
@@ -27,7 +26,7 @@ const NAV_ITEMS = [
   { href: "/timeline", label: "Health Timeline", icon: Clock },
   { href: "/calendar", label: "Care Calendar", icon: Calendar },
   { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/insurance", label: "Insurance", icon: ShieldCheck },
+
   { href: "/family", label: "Family", icon: Users },
   { href: "/consent", label: "Share Access", icon: QrCode },
   { href: "/subscription", label: "Plans", icon: CreditCard },

@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.routes import health, documents, intelligence, family, consent, doctor, subscription, ai_doctor, health_events, insurance
+from app.api.routes import health, documents, intelligence, family, consent, doctor, subscription, ai_doctor, health_events
 
 # Configure structured logging
 logging.basicConfig(
@@ -41,14 +41,14 @@ app.include_router(doctor.router)
 app.include_router(subscription.router)
 app.include_router(ai_doctor.router)
 app.include_router(health_events.router)
-app.include_router(insurance.router)
+
 
 
 @app.get("/")
 def root():
     return {
         "service": "CarePath AI Intelligence Engine",
-        "sprint": "Sprint 8: AI Insurance Claim Assistant",
+        "sprint": "Sprint 7: AI Intelligence",
         "documentation": "/docs",
         "health": "/health",
         "endpoints": {
@@ -62,7 +62,6 @@ def root():
             "doctor": "/api/doctor",
             "subscription": "/api/subscription",
             "ai_doctor": "/api/ai-doctor",
-            "insurance": "/api/insurance",
         },
         "status": "online",
     }
