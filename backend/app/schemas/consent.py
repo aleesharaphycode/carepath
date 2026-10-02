@@ -28,6 +28,7 @@ class ConsentSessionItem(BaseModel):
     recipient_name: str
     access_token: str
     qr_access_url: str
+    verification_code: Optional[str] = None
     scope: List[str]
     duration_minutes: int
     expires_at: str
@@ -38,6 +39,18 @@ class ConsentSessionItem(BaseModel):
 
 class ConsentSessionListResponse(BaseModel):
     sessions: List[ConsentSessionItem] = Field(default_factory=list)
+
+
+class DoctorAccessStatusResponse(BaseModel):
+    is_valid: bool
+    requires_pin: bool = True
+    is_approved: bool = False
+    expires_at: str
+    time_remaining_seconds: int
+
+
+class DoctorAccessVerifyRequest(BaseModel):
+    verification_code: str
 
 
 class RevokeConsentResponse(BaseModel):

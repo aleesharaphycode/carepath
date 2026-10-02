@@ -59,16 +59,62 @@ export function QrModal({ session, onClose, onRevoke }: QrModalProps) {
     }
   };
 
+  const [currentSession, setCurrentSession] = useState(session);
+  const [isApproving, setIsApproving] = useState(false);
+
+  const isExpired = currentSession.status === "expired";
+  const isRevoked = currentSession.status === "revoked";
+  const hasScanned = currentSession.scope.includes("SCANNED");
+  const hasApproved = currentSession.scope.includes("APPROVED");
+  const showApprovalRequest = hasScanned && !hasApproved && !isRevoked && !isExpired;
+
+  // Poll for session updates (like doctor scan)
+  useEffect(() => {
+    if (isRevoked || isExpired) return;
+    
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      import("@/lib/supabase/client").then(async ({ createClient }) => {
+        const supabase = createClient();
+        import("@/lib/services/consent").then(async ({ fetchConsentSessions }) => {
+          const res = await fetchConsentSessions(supabase, { forceRefresh: true });
+          if (isMounted && res.data) {
+            const updated = res.data.sessions.find(s => s.id === session.id);
+            if (updated) setCurrentSession(updated);
+          }
+        });
+      });
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [session.id, isRevoked, isExpired]);
+
+  const handleApprove = async () => {
+    setIsApproving(true);
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { approveConsentSession } = await import("@/lib/services/consent");
+    
+    const res = await approveConsentSession(supabase, currentSession.id);
+    if (!res.error) {
+      setCurrentSession({
+        ...currentSession,
+        scope: [...currentSession.scope, "APPROVED"]
+      });
+    }
+    setIsApproving(false);
+  };
+
   const handleRevokeClick = () => {
     if (!onRevoke) return;
     if (confirm("Are you sure you want to revoke this doctor access session immediately? Any further attempts to use this QR code or link will be denied.")) {
       setIsRevoking(true);
-      onRevoke(session.id);
+      onRevoke(currentSession.id);
     }
   };
-
-  const isExpired = session.status === "expired";
-  const isRevoked = session.status === "revoked";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
@@ -107,43 +153,95 @@ export function QrModal({ session, onClose, onRevoke }: QrModalProps) {
           </div>
         )}
 
-        {/* QR Code Presentation */}
-        <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200/80">
-          {generating ? (
-            <div className="h-56 w-56 flex items-center justify-center text-xs text-slate-400">
-              Generating secure QR...
+        {/* Dynamic Presentation Area */}
+        {showApprovalRequest ? (
+          <div className="flex flex-col items-center justify-center p-6 bg-amber-50 rounded-xl border border-amber-200 shadow-sm text-center space-y-4">
+            <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 border border-amber-300">
+              <ShieldCheck className="h-7 w-7" />
             </div>
-          ) : qrDataUrl ? (
-            <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-200">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrDataUrl}
-                alt="Doctor Access QR Code"
-                className={`h-56 w-56 rounded-lg ${isRevoked || isExpired ? "opacity-30 grayscale" : ""}`}
-              />
+            <div>
+              <h3 className="text-lg font-bold text-amber-950">Doctor Access Request</h3>
+              <p className="text-xs text-amber-800 mt-1">
+                A healthcare provider is requesting access to your shared medical records.
+              </p>
             </div>
-          ) : (
-            <div className="h-56 w-56 flex items-center justify-center text-xs text-red-500">
-              Failed to generate QR code.
+            <div className="bg-white p-3 rounded-lg border border-amber-100 w-full text-left space-y-1">
+              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Requested By</p>
+              <p className="text-sm font-semibold text-slate-900">{currentSession.recipient_name}</p>
             </div>
-          )}
-
-          <div className="mt-3 text-center space-y-1">
-            <span className="text-xs font-bold text-slate-800 block">
-              Recipient: {session.recipient_name}
-            </span>
-            <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
-              <Clock className="h-3 w-3 text-teal-600" />
-              <span>Valid for {session.duration_minutes} min (Expires: {new Date(session.expires_at).toLocaleTimeString()})</span>
+            <div className="flex flex-col w-full gap-2 pt-2">
+              <Button 
+                onClick={handleApprove} 
+                disabled={isApproving}
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold h-11"
+              >
+                {isApproving ? "Approving..." : "Approve & Show Verification Code"}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleRevokeClick} 
+                disabled={isRevoking}
+                className="w-full text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200 h-11 font-semibold"
+              >
+                Reject Access
+              </Button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200/80">
+            {generating ? (
+              <div className="h-56 w-56 flex items-center justify-center text-xs text-slate-400">
+                Generating secure QR...
+              </div>
+            ) : qrDataUrl ? (
+              <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-200">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={qrDataUrl}
+                  alt="Doctor Access QR Code"
+                  className={`h-56 w-56 rounded-lg ${isRevoked || isExpired ? "opacity-30 grayscale" : ""}`}
+                />
+              </div>
+            ) : (
+              <div className="h-56 w-56 flex items-center justify-center text-xs text-red-500">
+                Failed to generate QR code.
+              </div>
+            )}
+
+            <div className="mt-3 text-center space-y-1">
+              <span className="text-xs font-bold text-slate-800 block">
+                Recipient: {currentSession.recipient_name}
+              </span>
+              <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
+                <Clock className="h-3 w-3 text-teal-600" />
+                <span>Valid for {currentSession.duration_minutes} min (Expires: {new Date(currentSession.expires_at).toLocaleTimeString()})</span>
+              </div>
+            </div>
+            
+            {hasApproved && currentSession.verification_code && !isRevoked && !isExpired && (
+              <div className="mt-4 w-full rounded-xl border border-teal-200 bg-teal-50 p-4 text-center">
+                <h4 className="text-xs font-semibold text-teal-800 uppercase tracking-wider mb-1">Verification Code</h4>
+                <p className="text-3xl font-mono font-bold tracking-widest text-teal-900 mb-2">{currentSession.verification_code}</p>
+                <p className="text-[11px] text-teal-700 font-medium">Give this code directly to your healthcare provider.</p>
+              </div>
+            )}
+            
+            {!hasApproved && !hasScanned && !isRevoked && !isExpired && (
+              <div className="mt-4 w-full rounded-xl border border-slate-200 bg-slate-100 p-3 text-center text-[11px] text-slate-500">
+                <p>Waiting for doctor to scan the QR code...</p>
+                <p>The verification code will appear here after your approval.</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Scope Badges */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-700 block">Authorized Data Scope</label>
           <div className="flex flex-wrap gap-1.5">
-            {session.scope.map((s) => (
+            {currentSession.scope
+              .filter(s => !["SCANNED", "APPROVED", "CONSUMED", "LOCKED"].includes(s) && !s.startsWith("PIN:") && !s.startsWith("ATTEMPTS:"))
+              .map((s) => (
               <Badge key={s} variant="outline" className="text-[10px] capitalize bg-teal-50 text-teal-800 border-teal-200">
                 {s.replace("_", " ")}
               </Badge>
@@ -195,7 +293,7 @@ export function QrModal({ session, onClose, onRevoke }: QrModalProps) {
         </div>
 
         {/* Revoke Access Button */}
-        {session.status === "active" && onRevoke && (
+        {currentSession.status === "active" && onRevoke && !showApprovalRequest && (
           <Button
             type="button"
             variant="outline"

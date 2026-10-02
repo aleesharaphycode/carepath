@@ -11,6 +11,7 @@ from app.schemas.family import (
     CreateFamilyGroupRequest,
     AddFamilyMemberRequest,
     UpdateFamilyMemberRequest,
+    FamilyInvitationsResponse,
 )
 
 logger = logging.getLogger("carepath.routes.family")
@@ -76,6 +77,7 @@ async def update_family_member(
     membership_id: str,
     req: UpdateFamilyMemberRequest,
     user: Any = Depends(get_current_user),
+    patient: Dict[str, Any] = Depends(get_current_patient),
 ):
     """
     Updates access permissions (e.g. can_view_records) or relationship metadata.
@@ -84,6 +86,7 @@ async def update_family_member(
     return family_service.update_family_member(
         client=admin_client,
         user_id=user.id,
+        requester_patient_id=patient["id"],
         membership_id=membership_id,
         req=req,
     )
@@ -104,6 +107,62 @@ async def remove_family_member(
         client=admin_client,
         user_id=user.id,
         requester_patient_id=patient["id"],
+        membership_id=membership_id,
+    )
+
+
+@router.get("/invitations", response_model=FamilyInvitationsResponse)
+async def get_family_invitations(
+    user: Any = Depends(get_current_user),
+    patient: Dict[str, Any] = Depends(get_current_patient),
+):
+    """
+    Retrieves pending family invitations for the authenticated user.
+    """
+    admin_client = get_supabase_admin()
+    return family_service.get_family_invitations(
+        client=admin_client,
+        user_id=user.id,
+        patient_id=patient["id"],
+        user_email=user.email,
+    )
+
+
+@router.post("/members/invitations/{membership_id}/accept")
+async def accept_family_invitation(
+    membership_id: str,
+    user: Any = Depends(get_current_user),
+    patient: Dict[str, Any] = Depends(get_current_patient),
+):
+    """
+    Accepts a pending family invitation for a 16+ member.
+    Links the membership to the authenticated user's patient profile.
+    """
+    admin_client = get_supabase_admin()
+    return family_service.accept_family_invitation(
+        client=admin_client,
+        user_id=user.id,
+        patient_id=patient["id"],
+        user_email=user.email,
+        membership_id=membership_id,
+    )
+
+
+@router.post("/members/invitations/{membership_id}/decline")
+async def decline_family_invitation(
+    membership_id: str,
+    user: Any = Depends(get_current_user),
+    patient: Dict[str, Any] = Depends(get_current_patient),
+):
+    """
+    Declines a pending family invitation for a 16+ member.
+    """
+    admin_client = get_supabase_admin()
+    return family_service.decline_family_invitation(
+        client=admin_client,
+        user_id=user.id,
+        patient_id=patient["id"],
+        user_email=user.email,
         membership_id=membership_id,
     )
 

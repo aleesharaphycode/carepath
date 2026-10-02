@@ -247,6 +247,44 @@ export async function revokeConsentSession(
 }
 
 /**
+ * Approves a pending doctor access request.
+ */
+export async function approveConsentSession(
+  supabase: SupabaseClient,
+  sessionId: string
+): Promise<{ data: any | null; error: Error | null }> {
+  try {
+    const authHeader = await getAuthHeader(supabase);
+    if (!authHeader) {
+      return { data: null, error: new Error("Authentication required.") };
+    }
+
+    const response = await fetch(`${BACKEND_URL}/api/consent/${sessionId}/approve`, {
+      method: "POST",
+      headers: {
+        ...authHeader,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      return {
+        data: null,
+        error: new Error(errData.detail || `Failed to approve session (${response.status}).`),
+      };
+    }
+
+    const data = await response.json();
+    invalidateConsentCache();
+    return { data, error: null };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to approve session.";
+    return { data: null, error: new Error(msg) };
+  }
+}
+
+/**
  * Retrieves the append-only access audit log for the patient.
  */
 export async function fetchAccessAuditLogs(
@@ -282,15 +320,9 @@ export async function fetchAccessAuditLogs(
   }
 }
 
-/**
- * Validates doctor access token and returns consented clinical data.
- * Unauthenticated endpoint: capability token is the authorization.
- * If called from browser, utilizes local Next.js Route Handler to prevent
- * CORS, port 8000 reachability, and localhost issues on real mobile devices.
- */
-export async function fetchDoctorAccess(
+export async function checkDoctorAccessStatus(
   token: string
-): Promise<{ data: DoctorAccessResponse | null; error: Error | null }> {
+): Promise<{ data: any | null; error: Error | null }> {
   try {
     const cleanToken = token.trim();
     if (!cleanToken) {
@@ -307,6 +339,47 @@ export async function fetchDoctorAccess(
       headers: {
         "Content-Type": "application/json",
       },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      return {
+        data: null,
+        error: new Error(errData.detail || `Access denied (${response.status}).`),
+      };
+    }
+
+    const data = await response.json();
+    return { data, error: null };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to validate doctor access token.";
+    return { data: null, error: new Error(msg) };
+  }
+}
+
+export async function verifyDoctorAccessPin(
+  token: string,
+  pin: string
+): Promise<{ data: DoctorAccessResponse | null; error: Error | null }> {
+  try {
+    const cleanToken = token.trim();
+    if (!cleanToken) {
+      return { data: null, error: new Error("Doctor access token is required.") };
+    }
+
+    const url =
+      typeof window !== "undefined"
+        ? `/api/doctor/access/${encodeURIComponent(cleanToken)}`
+        : `${BACKEND_URL}/api/doctor/access/${encodeURIComponent(cleanToken)}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ verification_code: pin }),
+      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -320,7 +393,7 @@ export async function fetchDoctorAccess(
     const data: DoctorAccessResponse = await response.json();
     return { data, error: null };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to validate doctor access token.";
+    const msg = err instanceof Error ? err.message : "Failed to verify PIN.";
     return { data: null, error: new Error(msg) };
   }
 }

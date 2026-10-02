@@ -35,6 +35,7 @@ export function AddFamilyMemberModal({
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [gender, setGender] = useState("unspecified");
   const [phone, setPhone] = useState("");
+  const [targetEmail, setTargetEmail] = useState("");
   const [canViewRecords, setCanViewRecords] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export function AddFamilyMemberModal({
       date_of_birth: dateOfBirth || null,
       gender: gender !== "unspecified" ? gender : null,
       phone: phone.trim() || null,
+      target_email: targetEmail.trim() || null,
       can_view_records: canViewRecords,
     });
 
@@ -163,6 +165,36 @@ export function AddFamilyMemberModal({
               />
             </div>
           </div>
+
+          {(() => {
+            if (!dateOfBirth) return null;
+            const dob = new Date(dateOfBirth);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+              age--;
+            }
+            if (age >= 16) {
+              return (
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-semibold text-slate-700">CarePath Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={targetEmail}
+                    onChange={(e) => setTargetEmail(e.target.value)}
+                    placeholder="CarePath account email to send invitation"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    Members age 16+ must have their own CarePath account and explicitly grant record access.
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
             <label className="flex items-center gap-2.5 cursor-pointer">

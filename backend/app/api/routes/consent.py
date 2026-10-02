@@ -90,6 +90,24 @@ async def revoke_consent_session(
     )
 
 
+@router.post("/{session_id}/approve", response_model=Dict[str, Any])
+async def approve_consent_session(
+    session_id: str,
+    user: Any = Depends(get_current_user),
+    patient: Dict[str, Any] = Depends(get_current_patient),
+):
+    """
+    Approves a pending doctor access request (adds APPROVED to scope).
+    """
+    admin_client = get_supabase_admin()
+    return consent_service.approve_consent_session(
+        client=admin_client,
+        user_id=user.id,
+        patient_id=patient["id"],
+        session_id=session_id,
+    )
+
+
 @router.get("/audit", response_model=AuditLogResponse)
 async def get_access_audit_logs(
     user: Any = Depends(get_current_user),

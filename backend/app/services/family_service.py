@@ -195,6 +195,19 @@ class FamilyService:
         Adds a family member or dependent to an existing group.
         Creates a dedicated patient record ensuring medical records remain strictly separate.
         """
+        if not req.date_of_birth:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Date of birth is required to add a family member.")
+
+        try:
+            from datetime import date
+            dob = date.fromisoformat(req.date_of_birth)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid date of birth format. Use YYYY-MM-DD.")
+
+        today = date.today()
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        is_dependent = age < 16
+
         try:
             # 1. Verify caller owns or belongs to the family group
             grp_res = (
@@ -206,13 +219,117 @@ class FamilyService:
             )
             if not grp_res.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Family group not found.")
+            
+            is_owner = grp_res.data["created_by"] == user_id
+            if not is_owner:
+                mem_check = client.from_("family_memberships").select("id").eq("family_group_id", req.family_group_id).eq("patient_id", creator_patient_id).execute()
+                if not mem_check.data:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have authorization to add members to this family group.")
 
-            # 2. Create separate patient profile for dependent family member
+            is_dependent = age < 16
+
+            # 2. Check if user already exists (for 16+)
+            if not is_dependent:
+                if not req.target_email:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CarePath email is required for members age 16 and older.")
+                
+                target_email = req.target_email.strip().lower()
+                
+                # Try to find the user in Supabase Auth
+                users_list = client.auth.admin.list_users()
+                target_user = next((u for u in users_list if getattr(u, 'email', '').lower() == target_email), None)
+                
+                if target_user:
+                    # User exists! Check if they have a patient profile
+                    p_res = client.from_("patients").select("id").eq("user_id", target_user.id).maybe_single().execute()
+                    if p_res.data:
+                        existing_patient_id = p_res.data["id"]
+                        
+                        # Create membership directly as pending
+                        mem_res = (
+                            client.from_("family_memberships")
+                            .insert({
+                                "family_group_id": req.family_group_id,
+                                "patient_id": existing_patient_id,
+                                "relationship": req.relationship,
+                                "role": "member",
+                                "can_view_records": False,
+                                "access_status": "pending",
+                            })
+                            .execute()
+                        )
+                        if not mem_res.data:
+                            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create family membership for existing user.")
+                        
+                        client.from_("access_audit_logs").insert({
+                            "patient_id": existing_patient_id,
+                            "actor": "patient",
+                            "action": "family_invitation_created",
+                            "details": f"Family invitation created for existing account {target_email}."
+                        }).execute()
+                        
+                        return FamilyMemberProfile(
+                            id=mem_res.data[0]["id"],
+                            patient_id=existing_patient_id,
+                            full_name=req.full_name,
+                            date_of_birth=req.date_of_birth,
+                            gender=req.gender,
+                            phone=req.phone,
+                            relationship=req.relationship,
+                            role="member",
+                            can_view_records=False,
+                            access_status="pending",
+                            is_current_user=False,
+                            created_at=mem_res.data[0]["created_at"],
+                        )
+                
+                # If we get here, user/patient does NOT exist. Create a pending invitation.
+                from datetime import datetime, timezone, timedelta
+                import uuid
+                inv_token = uuid.uuid4().hex
+                expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+                
+                inv_res = (
+                    client.from_("family_invitations")
+                    .insert({
+                        "family_group_id": req.family_group_id,
+                        "inviter_patient_id": creator_patient_id,
+                        "target_email": target_email,
+                        "target_name": req.full_name,
+                        "target_dob": req.date_of_birth,
+                        "relationship": req.relationship,
+                        "role": "member",
+                        "status": "pending",
+                        "invitation_token": inv_token,
+                        "expires_at": expires_at
+                    })
+                    .execute()
+                )
+                if not inv_res.data:
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create pending invitation.")
+                
+                return FamilyMemberProfile(
+                    id=inv_res.data[0]["id"],
+                    patient_id="pending-invitation",
+                    full_name=req.full_name,
+                    date_of_birth=req.date_of_birth,
+                    gender=req.gender,
+                    phone=req.phone,
+                    relationship=req.relationship,
+                    role="member",
+                    can_view_records=False,
+                    access_status="pending",
+                    is_current_user=False,
+                    created_at=inv_res.data[0]["created_at"],
+                )
+            
+            # Dependent Flow (Under 16)
+            # 2. Create separate patient profile for the member
             new_p_res = (
                 client.from_("patients")
                 .insert({
                     "full_name": req.full_name.strip(),
-                    "date_of_birth": req.date_of_birth or None,
+                    "date_of_birth": req.date_of_birth,
                     "gender": req.gender or None,
                     "phone": req.phone or None,
                 })
@@ -230,15 +347,29 @@ class FamilyService:
                     "family_group_id": req.family_group_id,
                     "patient_id": new_patient_id,
                     "relationship": req.relationship,
-                    "role": "member",
+                    "role": "dependent",
                     "can_view_records": req.can_view_records,
                     "access_status": "active",
                 })
                 .execute()
             )
+            
+            # Rollback patient if membership creation failed (it shouldn't happen unless constraints fail)
+            # Actually, supabase-py raises an APIError on constraint violation before returning,
+            # but just in case it returns an empty data array:
             if not mem_res.data:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create family membership.")
+                client.from_("patients").delete().eq("id", new_patient_id).execute()
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create family membership. Rolled back patient.")
+            
             mem_data = mem_res.data[0]
+
+            # Audit log
+            client.from_("access_audit_logs").insert({
+                "patient_id": new_patient_id,
+                "actor": "patient",
+                "action": "dependent_created",
+                "details": f"Family member profile created for {req.full_name} (dependent).",
+            }).execute()
 
             return FamilyMemberProfile(
                 id=mem_data["id"],
@@ -248,7 +379,7 @@ class FamilyService:
                 gender=new_patient.get("gender"),
                 phone=new_patient.get("phone"),
                 relationship=req.relationship,
-                role="member",
+                role="dependent",
                 can_view_records=req.can_view_records,
                 access_status="active",
                 is_current_user=False,
@@ -258,6 +389,14 @@ class FamilyService:
             raise
         except Exception as e:
             logger.error(f"Failed to add family member {req.full_name}: {str(e)}")
+            # Rollback: Delete the created patient record if membership failed
+            if 'new_patient_id' in locals():
+                try:
+                    client.from_("patients").delete().eq("id", new_patient_id).execute()
+                    logger.info(f"Rolled back created patient {new_patient_id} due to membership creation failure.")
+                except Exception as rollback_e:
+                    logger.error(f"Failed to rollback patient {new_patient_id}: {str(rollback_e)}")
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to add family member: {str(e)}",
@@ -267,6 +406,7 @@ class FamilyService:
         self,
         client: Client,
         user_id: str,
+        requester_patient_id: str,
         membership_id: str,
         req: UpdateFamilyMemberRequest,
     ) -> Dict[str, Any]:
@@ -274,19 +414,11 @@ class FamilyService:
         Updates permissions (e.g. can_view_records toggle) or relationship for a member.
         Only group owner or the member themselves can update.
         """
-        if membership_id.startswith("demo-mem-"):
-            if req.can_view_records is not None:
-                self._demo_permissions[membership_id] = req.can_view_records
-            return {
-                "id": membership_id,
-                "can_view_records": req.can_view_records if req.can_view_records is not None else True,
-                "access_status": req.access_status or "active",
-            }
         try:
-            # 1. Fetch membership and group
+            # 1. Fetch membership and group and patient dob
             mem_res = (
                 client.from_("family_memberships")
-                .select("*, family_groups!inner(created_by)")
+                .select("*, family_groups!inner(created_by), patients!inner(date_of_birth)")
                 .eq("id", membership_id)
                 .maybe_single()
                 .execute()
@@ -295,13 +427,42 @@ class FamilyService:
             if not mem:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Family membership not found.")
 
+            family_group = mem.get("family_groups") or {}
+            group_owner_uid = family_group.get("created_by")
+            is_creator = group_owner_uid == user_id
+            is_self = mem["patient_id"] == requester_patient_id
+
+            if not (is_creator or is_self):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have authorization to update this family member.")
+
             update_data: Dict[str, Any] = {}
             if req.relationship is not None:
                 update_data["relationship"] = req.relationship
-            if req.can_view_records is not None:
-                update_data["can_view_records"] = req.can_view_records
             if req.access_status is not None:
                 update_data["access_status"] = req.access_status
+
+            if req.can_view_records is not None:
+                # Rule: do not allow a parent to directly mark a 16+ member as having granted permission.
+                patient_data = mem.get("patients") or {}
+                dob_str = patient_data.get("date_of_birth")
+                age = 0
+                if dob_str:
+                    try:
+                        from datetime import date
+                        dob = date.fromisoformat(dob_str)
+                        today = date.today()
+                        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                    except ValueError:
+                        pass
+                
+                is_dependent = age < 16
+                
+                if not is_dependent and not is_self and req.can_view_records == True:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN, 
+                        detail="You cannot grant record access on behalf of an independent family member (age 16+). The member must grant permission themselves."
+                    )
+                update_data["can_view_records"] = req.can_view_records
 
             if not update_data:
                 return mem
@@ -335,9 +496,6 @@ class FamilyService:
         Enforces strict authorization: user must own the group or be the member.
         Prevents removing the primary account holder / group owner.
         """
-        if membership_id.startswith("demo-mem-"):
-            return {"success": True, "message": "Family member removed successfully."}
-
         try:
             # 1. Fetch membership and parent family group
             mem_res = (
@@ -392,6 +550,226 @@ class FamilyService:
                 detail=f"Unable to remove family member: {str(e)}",
             )
 
+    def get_family_invitations(
+        self,
+        client: Client,
+        user_id: str,
+        patient_id: str,
+        user_email: str,
+    ) -> Dict[str, Any]:
+        """
+        Retrieves invitations for the current user, matching BOTH existing memberships marked pending
+        AND new family_invitations matched by email.
+        """
+        try:
+            from app.schemas.family import FamilyInvitationItem, FamilyInvitationsResponse
+            invitations_list = []
+            
+            # 1. Check family_memberships for pending
+            mem_res = (
+                client.from_("family_memberships")
+                .select("id, relationship, created_at, family_groups!inner(id, name, created_by)")
+                .eq("patient_id", patient_id)
+                .eq("access_status", "pending")
+                .execute()
+            )
+            for mem in (mem_res.data or []):
+                fg = mem.get("family_groups", {})
+                inviter_uid = fg.get("created_by")
+                
+                # Fetch inviter name
+                inviter_res = client.from_("patients").select("full_name").eq("user_id", inviter_uid).maybe_single().execute()
+                inviter_name = inviter_res.data["full_name"] if inviter_res.data else "Unknown Inviter"
+                
+                invitations_list.append(
+                    FamilyInvitationItem(
+                        id=mem["id"],
+                        family_group_id=fg.get("id"),
+                        group_name=fg.get("name", "Unknown Group"),
+                        inviter_name=inviter_name,
+                        relationship=mem["relationship"],
+                        status="pending",
+                        created_at=mem["created_at"],
+                        is_registered=True,
+                    )
+                )
+
+            # 2. Check family_invitations by email
+            if user_email:
+                inv_res = (
+                    client.from_("family_invitations")
+                    .select("id, family_group_id, relationship, created_at, family_groups!inner(name), patients!inner(full_name)")
+                    .ilike("target_email", user_email)
+                    .eq("status", "pending")
+                    .execute()
+                )
+                for inv in (inv_res.data or []):
+                    fg_name = inv.get("family_groups", {}).get("name", "Unknown Group")
+                    inviter_name = inv.get("patients", {}).get("full_name", "Unknown Inviter")
+                    
+                    invitations_list.append(
+                        FamilyInvitationItem(
+                            id=inv["id"],
+                            family_group_id=inv["family_group_id"],
+                            group_name=fg_name,
+                            inviter_name=inviter_name,
+                            relationship=inv["relationship"],
+                            status="pending",
+                            created_at=inv["created_at"],
+                            is_registered=False,
+                        )
+                    )
+
+            return FamilyInvitationsResponse(invitations=invitations_list).model_dump()
+        except Exception as e:
+            logger.error(f"Failed to get family invitations: {str(e)}")
+            return {"invitations": []}
+
+    def accept_family_invitation(
+        self,
+        client: Client,
+        user_id: str,
+        patient_id: str,
+        user_email: str,
+        membership_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Accepts a pending family invitation.
+        It could be an existing family_memberships row OR a family_invitations row.
+        """
+        try:
+            # Check family_memberships first
+            mem_res = client.from_("family_memberships").select("*").eq("id", membership_id).maybe_single().execute()
+            if mem_res.data:
+                mem = mem_res.data
+                if mem.get("access_status") != "pending":
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation is not pending.")
+                
+                if mem.get("patient_id") != patient_id:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have authorization to accept this invitation.")
+                
+                res = (
+                    client.from_("family_memberships")
+                    .update({"access_status": "active"})
+                    .eq("id", membership_id)
+                    .execute()
+                )
+
+                client.from_("access_audit_logs").insert({
+                    "patient_id": patient_id,
+                    "actor": "patient",
+                    "action": "family_invitation_accepted",
+                    "details": f"Family invitation accepted for membership {membership_id}.",
+                }).execute()
+                return {"status": "accepted", "medical_record_access": False, "data": res.data[0] if res.data else {}}
+            
+            # Not in memberships, check family_invitations
+            inv_res = client.from_("family_invitations").select("*").eq("id", membership_id).maybe_single().execute()
+            if inv_res.data:
+                inv = inv_res.data
+                if inv.get("status") != "pending":
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation is not pending.")
+                
+                if inv.get("target_email", "").lower() != user_email.lower():
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have authorization to accept this invitation.")
+                
+                # Move to family_memberships
+                mem_res = (
+                    client.from_("family_memberships")
+                    .insert({
+                        "family_group_id": inv["family_group_id"],
+                        "patient_id": patient_id,
+                        "relationship": inv["relationship"],
+                        "role": "member",
+                        "can_view_records": False,
+                        "access_status": "active",
+                    })
+                    .execute()
+                )
+                
+                # Mark invitation as accepted
+                client.from_("family_invitations").update({"status": "accepted"}).eq("id", membership_id).execute()
+
+                client.from_("access_audit_logs").insert({
+                    "patient_id": patient_id,
+                    "actor": "patient",
+                    "action": "family_invitation_accepted",
+                    "details": f"Family invitation {membership_id} accepted and account linked.",
+                }).execute()
+                return {"status": "accepted", "medical_record_access": False, "data": mem_res.data[0] if mem_res.data else {}}
+                
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found.")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to accept invitation {membership_id}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to accept invitation: {str(e)}",
+            )
+
+    def decline_family_invitation(
+        self,
+        client: Client,
+        user_id: str,
+        patient_id: str,
+        user_email: str,
+        membership_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Declines a pending family invitation.
+        """
+        try:
+            # Check family_memberships
+            mem_res = client.from_("family_memberships").select("*").eq("id", membership_id).maybe_single().execute()
+            if mem_res.data:
+                mem = mem_res.data
+                if mem.get("access_status") != "pending":
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation is not pending.")
+                if mem.get("patient_id") != patient_id:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have authorization to decline this invitation.")
+                
+                res = client.from_("family_memberships").update({"access_status": "declined"}).eq("id", membership_id).execute()
+                
+                client.from_("access_audit_logs").insert({
+                    "patient_id": patient_id,
+                    "actor": "patient",
+                    "action": "family_invitation_declined",
+                    "details": f"Family invitation declined for membership {membership_id}.",
+                }).execute()
+                return {"status": "declined", "data": res.data[0] if res.data else {}}
+            
+            # Check family_invitations
+            inv_res = client.from_("family_invitations").select("*").eq("id", membership_id).maybe_single().execute()
+            if inv_res.data:
+                inv = inv_res.data
+                if inv.get("status") != "pending":
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation is not pending.")
+                if inv.get("target_email", "").lower() != user_email.lower():
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have authorization to decline this invitation.")
+                
+                res = client.from_("family_invitations").update({"status": "declined"}).eq("id", membership_id).execute()
+                
+                client.from_("access_audit_logs").insert({
+                    "patient_id": patient_id, # Using the decliner's patient ID for the audit
+                    "actor": "patient",
+                    "action": "family_invitation_declined",
+                    "details": f"Family invitation {membership_id} declined.",
+                }).execute()
+                return {"status": "declined", "data": res.data[0] if res.data else {}}
+                
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found.")
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to decline invitation {membership_id}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to decline invitation: {str(e)}",
+            )
+
     def verify_family_view_permission(
         self,
         client: Client,
@@ -404,38 +782,56 @@ class FamilyService:
         Returns True if:
         1. requester_patient_id == target_patient_id (accessing own records)
         2. requester belongs to a family group where target_patient_id has can_view_records=True AND access_status='active'.
-        Otherwise returns False (403 Forbidden).
+        3. target_patient_id age rule is satisfied.
         """
-        # Rule 1: Patient can always view their own health records
         if requester_patient_id == target_patient_id:
             return True
 
-        # Rule 2: Explicit demo dependent check
-        if target_patient_id == "demo-patient-lucas-vance":
-            return True
-        if target_patient_id == "demo-patient-margaret-vance":
-            # Dynamic check based on whether user toggled permission in demo session
-            return self._demo_permissions.get("demo-mem-margaret", False)
-
-        # Rule 3: Database check for real family groups
         try:
+            # Check if target patient has authorized records sharing in any active family group
+            # and check their age constraint
             res = (
                 client.from_("family_memberships")
-                .select("id, family_group_id, can_view_records, access_status")
+                .select("id, family_group_id, can_view_records, access_status, patients!inner(date_of_birth, user_id)")
                 .eq("patient_id", target_patient_id)
                 .eq("can_view_records", True)
                 .eq("access_status", "active")
                 .execute()
             )
-            target_grps = [row["family_group_id"] for row in (res.data or [])]
-            if not target_grps:
+            
+            valid_groups = []
+            for row in (res.data or []):
+                patient_data = row.get("patients") or {}
+                dob_str = patient_data.get("date_of_birth")
+                age = 0
+                if dob_str:
+                    try:
+                        from datetime import date
+                        dob = date.fromisoformat(dob_str)
+                        today = date.today()
+                        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                    except ValueError:
+                        pass
+                
+                is_dependent = age < 16
+                
+                if is_dependent:
+                    # Dependent under 16: Active and can_view_records=True is sufficient
+                    valid_groups.append(row["family_group_id"])
+                else:
+                    # 16 or older: Must have their own user_id linked!
+                    # and must be active + can_view_records
+                    if patient_data.get("user_id"):
+                        valid_groups.append(row["family_group_id"])
+                        
+            if not valid_groups:
                 return False
 
             # Check if requester is in any of those groups
             my_res = (
                 client.from_("family_memberships")
                 .select("id")
-                .in_("family_group_id", target_grps)
+                .in_("family_group_id", valid_groups)
                 .eq("patient_id", requester_patient_id)
                 .eq("access_status", "active")
                 .execute()

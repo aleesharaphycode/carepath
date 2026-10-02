@@ -294,7 +294,23 @@ export interface AddFamilyMemberRequest {
   date_of_birth?: string | null;
   gender?: string | null;
   phone?: string | null;
+  target_email?: string | null;
   can_view_records?: boolean;
+}
+
+export interface FamilyInvitationItem {
+  id: string;
+  family_group_id: string;
+  group_name: string;
+  inviter_name: string;
+  relationship: string;
+  status: string;
+  created_at: string;
+  is_registered: boolean;
+}
+
+export interface FamilyInvitationsResponse {
+  invitations: FamilyInvitationItem[];
 }
 
 export interface UpdateFamilyMemberRequest {
@@ -310,6 +326,7 @@ export interface ConsentSessionItem {
   recipient_name: string;
   access_token: string;
   qr_access_url: string;
+  verification_code?: string;
   scope: string[];
   duration_minutes: number;
   expires_at: string;
@@ -465,7 +482,10 @@ export interface AIDoctorFeedbackPayload {
   ai_response?: string;
 }
 
-
-
-
-
+export interface DoctorAccessStatusResponse {
+  is_valid: boolean;
+  requires_pin: boolean;
+  is_approved: boolean;
+  expires_at: string;
+  time_remaining_seconds: number;
+}

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { fetchDoctorAccess } from "@/lib/services/consent";
+import { checkDoctorAccessStatus, verifyDoctorAccessPin } from "@/lib/services/consent";
 import { DoctorAccessResponse } from "@/lib/types";
 
 interface PageProps {
@@ -29,9 +29,12 @@ export default function ShareTokenPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const token = resolvedParams.token;
 
+  const [status, setStatus] = useState<any>(null);
   const [data, setData] = useState<DoctorAccessResponse | null>(null);
   const [loading, setLoading] = useState(Boolean(token));
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(token ? null : "No access token provided.");
+  const [pin, setPin] = useState("");
   const [activeTab, setActiveTab] = useState<string>("documents");
   const [viewingDoc, setViewingDoc] = useState<{
     file_name: string;
@@ -46,33 +49,14 @@ export default function ShareTokenPage({ params }: PageProps) {
     if (!token) return;
 
     let isMounted = true;
-    fetchDoctorAccess(token)
+    checkDoctorAccessStatus(token)
       .then((res) => {
         if (!isMounted) return;
         setLoading(false);
         if (res.error) {
           setError(res.error.message);
         } else if (res.data) {
-          setData(res.data);
-          setSecondsRemaining(res.data.time_remaining_seconds || 0);
-
-          // Pick the first available consented tab
-          const scope = res.data.scope || [];
-          if (scope.includes("documents") && (res.data.documents?.length || 0) > 0) {
-            setActiveTab("documents");
-          } else if (scope.includes("timeline") && (res.data.timeline?.length || 0) > 0) {
-            setActiveTab("timeline");
-          } else if (scope.includes("medications") && (res.data.medications?.length || 0) > 0) {
-            setActiveTab("medications");
-          } else if (scope.includes("investigations") && (res.data.investigations?.length || 0) > 0) {
-            setActiveTab("investigations");
-          } else if (scope.includes("diagnoses") && (res.data.diagnoses?.length || 0) > 0) {
-            setActiveTab("diagnoses");
-          } else if (scope.includes("procedures") && (res.data.procedures?.length || 0) > 0) {
-            setActiveTab("procedures");
-          } else if (scope.length > 0) {
-            setActiveTab(scope[0]);
-          }
+          setStatus(res.data);
         }
       })
       .catch((err) => {
@@ -85,6 +69,61 @@ export default function ShareTokenPage({ params }: PageProps) {
       isMounted = false;
     };
   }, [token]);
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pin || pin.length < 6) return;
+
+    setVerifying(true);
+    setError(null);
+    const res = await verifyDoctorAccessPin(token, pin);
+    setVerifying(false);
+
+    if (res.error) {
+      setError(res.error.message);
+    } else if (res.data) {
+      setData(res.data);
+      setSecondsRemaining(res.data.time_remaining_seconds || 0);
+
+      const scope = res.data.scope || [];
+      if (scope.includes("documents") && (res.data.documents?.length || 0) > 0) {
+        setActiveTab("documents");
+      } else if (scope.includes("timeline") && (res.data.timeline?.length || 0) > 0) {
+        setActiveTab("timeline");
+      } else if (scope.includes("medications") && (res.data.medications?.length || 0) > 0) {
+        setActiveTab("medications");
+      } else if (scope.includes("investigations") && (res.data.investigations?.length || 0) > 0) {
+        setActiveTab("investigations");
+      } else if (scope.includes("diagnoses") && (res.data.diagnoses?.length || 0) > 0) {
+        setActiveTab("diagnoses");
+      } else if (scope.includes("procedures") && (res.data.procedures?.length || 0) > 0) {
+        setActiveTab("procedures");
+      } else if (scope.length > 0) {
+        setActiveTab(scope[0]);
+      }
+    }
+  };
+
+  // Polling for patient approval
+  useEffect(() => {
+    if (!token || !status || status.is_approved) return;
+
+    let isMounted = true;
+    const interval = setInterval(() => {
+      checkDoctorAccessStatus(token)
+        .then((res) => {
+          if (isMounted && res.data) {
+            setStatus(res.data);
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [token, status?.is_approved]);
 
   // Live countdown timer
   useEffect(() => {
@@ -165,6 +204,8 @@ export default function ShareTokenPage({ params }: PageProps) {
                   ? "Access Session Expired"
                   : error.toLowerCase().includes("revoked")
                   ? "Access Session Revoked"
+                  : error.toLowerCase().includes("locked")
+                  ? "Access Locked"
                   : "Access Denied"}
               </h3>
               <p className="text-xs sm:text-sm text-red-700 max-w-md mx-auto font-medium">
@@ -176,8 +217,69 @@ export default function ShareTokenPage({ params }: PageProps) {
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               {error.toLowerCase().includes("expired")
                 ? "For patient privacy and least-privilege security, all temporary clinical access sessions auto-expire once their duration limit elapses."
-                : "This QR code session may have been revoked by the patient, reached its configured expiration limit, or contains an invalid capability token. Please ask the patient to generate a new QR code from their CarePath app."}
+                : "This QR code session may have been revoked, expired, or locked due to too many failed attempts. Please ask the patient to generate a new QR code."}
             </p>
+          </div>
+        )}
+
+        {!data && status && status.requires_pin && !status.is_approved && !error && !loading && (
+          <div className="max-w-md mx-auto mt-8">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden p-8 text-center space-y-4">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                <Clock className="h-7 w-7 animate-pulse" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Waiting for patient approval</h2>
+                <p className="text-sm text-slate-500 mt-2 max-w-[280px] mx-auto">
+                  Please ask the patient to approve this access request on their device.
+                </p>
+              </div>
+              <div className="flex items-center justify-center pt-4">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!data && status && status.requires_pin && status.is_approved && !error && !loading && (
+          <div className="max-w-md mx-auto mt-8">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+              <div className="bg-teal-50 border-b border-teal-100 p-6 text-center space-y-2">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-teal-100 text-teal-700">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <h2 className="text-lg font-bold text-teal-950">Patient Access Verification</h2>
+                <p className="text-xs text-teal-700 max-w-[280px] mx-auto">
+                  The patient has approved access. Enter the 6-digit verification code shown on the patient's screen.
+                </p>
+              </div>
+              <form onSubmit={handleVerify} className="p-6 space-y-5">
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                    placeholder="• • • • • •"
+                    className="w-full text-center text-3xl font-mono tracking-[0.5em] py-4 rounded-xl border border-slate-300 bg-slate-50 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-hidden transition-all"
+                    disabled={verifying}
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={pin.length < 6 || verifying}
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white h-11 text-sm font-semibold shadow-sm"
+                >
+                  {verifying ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying Access...</>
+                  ) : (
+                    "Verify Access"
+                  )}
+                </Button>
+              </form>
+            </div>
           </div>
         )}
 

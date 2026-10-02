@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS public.family_memberships (
     family_group_id UUID NOT NULL REFERENCES public.family_groups(id) ON DELETE CASCADE,
     patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
     relationship TEXT NOT NULL, -- e.g. 'Spouse', 'Child', 'Parent', 'Sibling', 'Guardian', 'Other'
-    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member', 'dependent')),
     can_view_records BOOLEAN NOT NULL DEFAULT false, -- Explicit authorization required!
     access_status TEXT NOT NULL DEFAULT 'active' CHECK (access_status IN ('active', 'pending', 'revoked')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),

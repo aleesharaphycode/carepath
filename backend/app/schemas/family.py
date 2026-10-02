@@ -43,6 +43,7 @@ class AddFamilyMemberRequest(BaseModel):
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
     phone: Optional[str] = None
+    target_email: Optional[str] = None
     can_view_records: bool = False
 
 
@@ -50,3 +51,19 @@ class UpdateFamilyMemberRequest(BaseModel):
     relationship: Optional[str] = None
     can_view_records: Optional[bool] = None
     access_status: Optional[str] = None
+
+
+class FamilyInvitationItem(BaseModel):
+    id: str  # membership_id OR invitation_id
+    family_group_id: str
+    group_name: str
+    inviter_name: str
+    relationship: str
+    status: str
+    created_at: str
+    is_registered: bool
+
+
+class FamilyInvitationsResponse(BaseModel):
+    invitations: List[FamilyInvitationItem] = Field(default_factory=list)
+

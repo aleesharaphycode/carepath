@@ -26,10 +26,14 @@ import {
   createFamilyGroup,
   updateFamilyMember,
   removeFamilyMember,
+  acceptFamilyInvitation,
+  getFamilyInvitations,
+  declineFamilyInvitation,
 } from "@/lib/services/family";
 import {
   FamilyGroupItem,
   FamilyMemberProfile,
+  FamilyInvitationItem,
 } from "@/lib/types";
 import { AddFamilyMemberModal } from "./add-family-member-modal";
 import { FamilyMemberRecordsModal } from "./family-member-records-modal";
@@ -45,6 +49,7 @@ export function FamilyManager({ currentPatientId }: FamilyManagerProps) {
   const cachedFam = getCachedFamilyDashboard();
 
   const [groups, setGroups] = useState<FamilyGroupItem[]>(() => cachedFam?.groups || []);
+  const [invitations, setInvitations] = useState<FamilyInvitationItem[]>([]);
   const [loading, setLoading] = useState(() => !cachedFam);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,6 +86,8 @@ export function FamilyManager({ currentPatientId }: FamilyManagerProps) {
       } else if (res.data) {
         setGroups(res.data.groups);
       }
+      const invRes = await getFamilyInvitations(supabase);
+      if (invRes.data) setInvitations(invRes.data.invitations);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load family dashboard.");
     } finally {
@@ -92,13 +99,16 @@ export function FamilyManager({ currentPatientId }: FamilyManagerProps) {
     let isMounted = true;
     const supabase = createClient();
 
-    fetchFamilyDashboard(supabase)
-      .then((res) => {
+    Promise.all([fetchFamilyDashboard(supabase), getFamilyInvitations(supabase)])
+      .then(([res, invRes]) => {
         if (!isMounted) return;
         if (res.error) {
           setError(res.error.message);
         } else if (res.data) {
           setGroups(res.data.groups);
+        }
+        if (invRes.data) {
+          setInvitations(invRes.data.invitations);
         }
       })
       .catch((err: unknown) => {
@@ -147,6 +157,30 @@ export function FamilyManager({ currentPatientId }: FamilyManagerProps) {
     if (!res.success) {
       alert(`Permission update failed: ${res.error?.message || "Unknown error"}`);
       loadData(); // Revert on failure
+    }
+  };
+
+  const handleAcceptInvitation = async (id: string) => {
+    const supabase = createClient();
+    const res = await acceptFamilyInvitation(supabase, id);
+    if (!res.success) {
+      alert(`Failed to accept invitation: ${res.error?.message || "Unknown error"}`);
+    } else {
+      setSuccessMessage("Invitation accepted successfully.");
+      setTimeout(() => setSuccessMessage(null), 4500);
+      loadData();
+    }
+  };
+
+  const handleDeclineInvitation = async (id: string) => {
+    const supabase = createClient();
+    const res = await declineFamilyInvitation(supabase, id);
+    if (!res.success) {
+      alert(`Failed to decline invitation: ${res.error?.message || "Unknown error"}`);
+    } else {
+      setSuccessMessage("Invitation declined.");
+      setTimeout(() => setSuccessMessage(null), 4500);
+      loadData();
     }
   };
 
@@ -284,6 +318,52 @@ export function FamilyManager({ currentPatientId }: FamilyManagerProps) {
         </div>
       )}
 
+      {/* Pending Invitations */}
+      {invitations.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-bold text-slate-900">Family Invitations</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {invitations.map((inv) => (
+              <div
+                key={inv.id}
+                className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-amber-200 font-bold text-xs text-amber-700 shadow-sm">
+                      {inv.group_name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">{inv.group_name}</h4>
+                      <p className="text-[11px] text-slate-600">Invited by: {inv.inviter_name} ({inv.relationship})</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    onClick={() => handleAcceptInvitation(inv.id)}
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-xs h-8 font-semibold"
+                  >
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                    Accept
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDeclineInvitation(inv.id)}
+                    className="flex-1 text-xs h-8 text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Family Groups List */}
       {groups.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center space-y-3">
@@ -374,9 +454,17 @@ export function FamilyManager({ currentPatientId }: FamilyManagerProps) {
                                   <Badge className="bg-teal-50 text-teal-800 border-teal-200 text-[9px] px-1 py-0">
                                     Primary Account
                                   </Badge>
-                                ) : (
+                                ) : member.access_status === "pending" ? (
+                                  <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-[9px] px-1 py-0">
+                                    Invitation Pending
+                                  </Badge>
+                                ) : member.role === "dependent" ? (
                                   <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[9px] px-1 py-0">
-                                    Managed Dependent (No Direct Login)
+                                    Dependent - Managed by Parent
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] px-1 py-0">
+                                    Independent Member
                                   </Badge>
                                 )}
                               </div>
@@ -396,18 +484,55 @@ export function FamilyManager({ currentPatientId }: FamilyManagerProps) {
                           <div className="rounded-lg bg-white p-2.5 border border-slate-200 text-xs space-y-1">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-semibold text-slate-700">Records Access</span>
-                              <input
-                                type="checkbox"
-                                checked={member.can_view_records}
-                                onChange={() => handleTogglePermission(member, member.can_view_records)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                              />
+                              {member.role === "dependent" ? (
+                                <input
+                                  type="checkbox"
+                                  checked={member.can_view_records}
+                                  onChange={() => handleTogglePermission(member, member.can_view_records)}
+                                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                />
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-medium">Member Controlled</span>
+                              )}
                             </div>
                             <p className="text-[10px] text-slate-500 leading-tight">
                               {member.can_view_records
                                 ? "Authorized to view medical records"
                                 : "Viewing restricted by authorization policy"}
                             </p>
+                          </div>
+                        )}
+
+                        {isCurrent && member.role !== "owner" && (
+                          <div className="rounded-lg bg-white p-2.5 border border-slate-200 text-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-slate-700">Share My Records</span>
+                              <input
+                                type="checkbox"
+                                checked={member.can_view_records}
+                                onChange={() => handleTogglePermission(member, member.can_view_records)}
+                                disabled={member.access_status === "pending"}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-tight">
+                              {member.can_view_records
+                                ? "Sharing records with this circle"
+                                : "Not sharing records with this circle"}
+                            </p>
+                          </div>
+                        )}
+
+                        {isCurrent && member.access_status === "pending" && (
+                          <div className="pt-1">
+                            <Button
+                              size="sm"
+                              onClick={() => handleAcceptInvitation(member.id)}
+                              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 font-semibold"
+                            >
+                              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                              Accept Invitation
+                            </Button>
                           </div>
                         )}
                       </div>
