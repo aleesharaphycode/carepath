@@ -29,6 +29,7 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { CompleteProfileCard } from "@/components/profile/complete-profile-card";
 import { MedicalDocument } from "@/lib/types";
 import { DashboardTimelineWidget } from "@/components/dashboard/dashboard-timeline-widget";
+import { withTimeout } from "@/lib/utils";
 
 export const metadata = {
   title: "Patient Dashboard | CarePath",
@@ -36,6 +37,8 @@ export const metadata = {
 };
 
 export default async function DashboardPage() {
+  console.log("[CarePath Workspace] dashboard page initialization started");
+  const dashboardStart = Date.now();
   // 1. Server-side Authentication Guard
   const { user, supabase } = await getAuthenticatedUser();
 
@@ -66,69 +69,88 @@ export default async function DashboardPage() {
   let docTableMissing = false;
 
   if (profile) {
-    const [
-      docRes,
-      medRes,
-      diagRes,
-      fuRes,
-      misRes,
-      famRes,
-      consentRes,
-    ] = await Promise.allSettled([
-      supabase
-        .from("documents")
-        .select("id, file_name, file_type, file_size, document_type, processing_status, uploaded_at")
-        .eq("patient_id", profile.id)
-        .order("uploaded_at", { ascending: false }),
-      supabase
-        .from("medications")
-        .select("id", { count: "exact", head: true })
-        .eq("patient_id", profile.id),
-      supabase
-        .from("diagnoses")
-        .select("id", { count: "exact", head: true })
-        .eq("patient_id", profile.id),
-      supabase
-        .from("follow_ups")
-        .select("id", { count: "exact", head: true })
-        .eq("patient_id", profile.id),
-      supabase
-        .from("cross_document_mismatches")
-        .select("id", { count: "exact", head: true })
-        .eq("patient_id", profile.id),
-      supabase
-        .from("family_memberships")
-        .select("id", { count: "exact", head: true }),
-      supabase
-        .from("consent_sessions")
-        .select("id", { count: "exact", head: true })
-        .eq("patient_id", profile.id)
-        .eq("status", "active"),
-    ]);
+    console.log("[CarePath Workspace] starting parallel aggregation queries");
+    const aggStart = Date.now();
+    try {
+      const [
+        docRes,
+        medRes,
+        diagRes,
+        fuRes,
+        misRes,
+        famRes,
+        consentRes,
+      ] = await withTimeout(
+        Promise.allSettled([
+          supabase
+            .from("documents")
+            .select("id, file_name, file_type, file_size, document_type, processing_status, uploaded_at")
+            .eq("patient_id", profile.id)
+            .order("uploaded_at", { ascending: false }),
+          supabase
+            .from("medications")
+            .select("id", { count: "exact", head: true })
+            .eq("patient_id", profile.id),
+          supabase
+            .from("diagnoses")
+            .select("id", { count: "exact", head: true })
+            .eq("patient_id", profile.id),
+          supabase
+            .from("follow_ups")
+            .select("id", { count: "exact", head: true })
+            .eq("patient_id", profile.id),
+          supabase
+            .from("cross_document_mismatches")
+            .select("id", { count: "exact", head: true })
+            .eq("patient_id", profile.id),
+          supabase
+            .from("family_memberships")
+            .select("id", { count: "exact", head: true }),
+          supabase
+            .from("consent_sessions")
+            .select("id", { count: "exact", head: true })
+            .eq("patient_id", profile.id)
+            .eq("status", "active"),
+        ]),
+        8000,
+        "Dashboard Aggregation"
+      );
 
-    if (docRes.status === "fulfilled" && docRes.value.data) {
-      documents = docRes.value.data as unknown as MedicalDocument[];
-    } else if (docRes.status === "fulfilled" && docRes.value.error?.code === "PGRST205") {
-      docTableMissing = true;
-    }
+      const aggElapsed = Date.now() - aggStart;
+      console.log(`[CarePath Workspace] parallel aggregation queries completed in ${aggElapsed}ms`);
+      if (aggElapsed > 1500) {
+        console.log(`[CarePath Workspace] SLOW OPERATION: dashboard aggregation ${aggElapsed}ms`);
+      }
 
-    if (medRes.status === "fulfilled" && medRes.value.count !== null) {
-      medicationsCount = medRes.value.count || 0;
-    }
-    if (diagRes.status === "fulfilled" && diagRes.value.count !== null) {
-      diagnosesCount = diagRes.value.count || 0;
-    }
-    if (fuRes.status === "fulfilled" && fuRes.value.count !== null) {
-      followUpsCount = fuRes.value.count || 0;
-    }
-    if (misRes.status === "fulfilled" && misRes.value.count !== null) {
-      mismatchesCount = misRes.value.count || 0;
-    }
-    if (famRes.status === "fulfilled" && famRes.value.count !== null) {
-      familyCount = famRes.value.count || 0;
-    }
-    if (consentRes.status === "fulfilled" && consentRes.value.count !== null) {
-      activeConsentsCount = consentRes.value.count || 0;
+      if (docRes.status === "fulfilled" && docRes.value.data) {
+        documents = docRes.value.data as unknown as MedicalDocument[];
+      } else if (docRes.status === "fulfilled" && docRes.value.error?.code === "PGRST205") {
+        docTableMissing = true;
+      } else if (docRes.status === "rejected") {
+        console.error(`[CarePath Workspace] FAILED: docRes`, docRes.reason);
+      }
+
+      if (medRes.status === "fulfilled" && medRes.value.count !== null) {
+        medicationsCount = medRes.value.count || 0;
+      }
+      if (diagRes.status === "fulfilled" && diagRes.value.count !== null) {
+        diagnosesCount = diagRes.value.count || 0;
+      }
+      if (fuRes.status === "fulfilled" && fuRes.value.count !== null) {
+        followUpsCount = fuRes.value.count || 0;
+      }
+      if (misRes.status === "fulfilled" && misRes.value.count !== null) {
+        mismatchesCount = misRes.value.count || 0;
+      }
+      if (famRes.status === "fulfilled" && famRes.value.count !== null) {
+        familyCount = famRes.value.count || 0;
+      }
+      if (consentRes.status === "fulfilled" && consentRes.value.count !== null) {
+        activeConsentsCount = consentRes.value.count || 0;
+      }
+    } catch (err) {
+      console.error(`[CarePath Workspace] FAILED: dashboard aggregation`, err);
+      throw err; // Let Next.js error boundary catch it instead of hanging
     }
   }
 
@@ -136,6 +158,8 @@ export default async function DashboardPage() {
   const pendingCount = documents.filter((d) => d.processing_status === "pending").length;
   const recentDocuments = documents.slice(0, 4);
   const totalClinicalFacts = diagnosesCount + medicationsCount + followUpsCount;
+
+  console.log(`[CarePath Workspace] workspace initialization completed in ${Date.now() - dashboardStart}ms`);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">

@@ -16,8 +16,8 @@ export function NavAuth() {
     const supabase = createClient();
 
     // Check current auth status
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
       setLoading(false);
     });
 

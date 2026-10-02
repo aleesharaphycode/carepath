@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { PatientProfile, PatientProfileUpdate } from "@/lib/types";
+import { withTimeout } from "@/lib/utils";
 
 /**
  * Checks whether a patient profile is fully completed with all basic core profile fields.
@@ -35,14 +36,27 @@ export async function getPatientProfile(
   supabase: SupabaseClient,
   userId: string
 ): Promise<{ profile: PatientProfile | null; error: Error | null; tableMissing?: boolean }> {
+  console.log("[CarePath Workspace] profile fetch started");
+  const profileStart = Date.now();
   try {
-    const { data, error } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const { data, error } = await withTimeout(
+      supabase
+        .from("patients")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      5000,
+      "Profile Fetch"
+    );
+
+    const elapsed = Date.now() - profileStart;
+    console.log(`[CarePath Workspace] profile fetch completed in ${elapsed}ms`);
+    if (elapsed > 1000) {
+      console.log(`[CarePath Workspace] SLOW OPERATION: profile fetch ${elapsed}ms`);
+    }
 
     if (error) {
+      console.error(`[CarePath Workspace] FAILED: profile fetch ${error.message}`);
       // Check if table has not been created yet in Supabase
       if (error.code === "PGRST205" || error.message.includes("does not exist") || error.message.includes("schema cache")) {
         return { profile: null, error: new Error(error.message), tableMissing: true };
@@ -53,6 +67,7 @@ export async function getPatientProfile(
     return { profile: data as PatientProfile | null, error: null };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to load patient profile";
+    console.error(`[CarePath Workspace] FAILED: profile fetch ${message}`);
     return { profile: null, error: new Error(message) };
   }
 }

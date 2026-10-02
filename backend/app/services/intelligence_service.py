@@ -140,11 +140,11 @@ class IntelligenceService:
         """
         with ThreadPoolExecutor(max_workers=6) as executor:
             f_docs = executor.submit(lambda: self._get_document_map(client, patient_id))
-            f_diag = executor.submit(lambda: client.from_("diagnoses").select("*").eq("patient_id", patient_id).execute())
-            f_med = executor.submit(lambda: client.from_("medications").select("*").eq("patient_id", patient_id).execute())
-            f_inv = executor.submit(lambda: client.from_("investigations").select("*").eq("patient_id", patient_id).execute())
-            f_proc = executor.submit(lambda: client.from_("procedures").select("*").eq("patient_id", patient_id).execute())
-            f_fol = executor.submit(lambda: client.from_("follow_ups").select("*").eq("patient_id", patient_id).execute())
+            f_diag = executor.submit(lambda: client.from_("diagnoses").select("id, name, date, status, document_id, source_page, source_text, confidence_note").eq("patient_id", patient_id).execute())
+            f_med = executor.submit(lambda: client.from_("medications").select("id, name, dose, frequency, route, duration, instructions, start_date, end_date, document_id, source_page, source_text, confidence_note").eq("patient_id", patient_id).execute())
+            f_inv = executor.submit(lambda: client.from_("investigations").select("id, name, date, result, unit, reference_range, abnormal_flag, document_id, source_page, source_text, confidence_note").eq("patient_id", patient_id).execute())
+            f_proc = executor.submit(lambda: client.from_("procedures").select("id, name, date, details, document_id, source_page, source_text, confidence_note").eq("patient_id", patient_id).execute())
+            f_fol = executor.submit(lambda: client.from_("follow_ups").select("id, description, confirmed_date, relative_time, document_id, source_page, source_text, confidence_note").eq("patient_id", patient_id).execute())
 
             doc_map = f_docs.result()
             diag_res = f_diag.result()
@@ -333,9 +333,9 @@ class IntelligenceService:
         with ThreadPoolExecutor(max_workers=5) as executor:
             f_docs = executor.submit(lambda: self._get_document_map(client, patient_id))
             f_dates = executor.submit(lambda: self._get_document_dates(client, patient_id))
-            f_he = executor.submit(lambda: client.from_("health_events").select("*").eq("patient_id", patient_id).execute())
-            f_fol = executor.submit(lambda: client.from_("follow_ups").select("*").eq("patient_id", patient_id).execute())
-            f_proc = executor.submit(lambda: client.from_("procedures").select("*").eq("patient_id", patient_id).execute())
+            f_he = executor.submit(lambda: client.from_("health_events").select("id, event_date, status, event_type, title, document_id, description, doctor_name, clinic_name, location").eq("patient_id", patient_id).execute())
+            f_fol = executor.submit(lambda: client.from_("follow_ups").select("id, description, confirmed_date, relative_time, document_id, source_page, source_text, confidence_note").eq("patient_id", patient_id).execute())
+            f_proc = executor.submit(lambda: client.from_("procedures").select("id, name, date, details, document_id, source_page, source_text, confidence_note").eq("patient_id", patient_id).execute())
 
             doc_map = f_docs.result()
             doc_dates = f_dates.result()
@@ -531,10 +531,10 @@ class IntelligenceService:
         """
         with ThreadPoolExecutor(max_workers=5) as executor:
             f_docs = executor.submit(lambda: self._get_document_map(client, patient_id))
-            f_meds = executor.submit(lambda: client.from_("medications").select("*").eq("patient_id", patient_id).execute())
-            f_proc = executor.submit(lambda: client.from_("procedures").select("*").eq("patient_id", patient_id).execute())
+            f_meds = executor.submit(lambda: client.from_("medications").select("id, name, dose, document_id, source_page, source_text").eq("patient_id", patient_id).execute())
+            f_proc = executor.submit(lambda: client.from_("procedures").select("id, name, details, document_id, source_page, source_text").eq("patient_id", patient_id).execute())
             f_ext = executor.submit(lambda: client.from_("document_extractions").select("document_id, clinical_notes, raw_extraction").eq("patient_id", patient_id).execute())
-            f_db_mis = executor.submit(lambda: client.from_("cross_document_mismatches").select("*").eq("patient_id", patient_id).execute())
+            f_db_mis = executor.submit(lambda: client.from_("cross_document_mismatches").select("id, category, title, field_name, source_a_document_id, source_a_page, source_a_text, source_a_value, source_b_document_id, source_b_page, source_b_text, source_b_value, explanation, verification_message, status, created_at").eq("patient_id", patient_id).execute())
 
             doc_map = f_docs.result()
             meds_res = f_meds.result()

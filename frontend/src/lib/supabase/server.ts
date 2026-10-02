@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { withTimeout } from "@/lib/utils";
 
 /**
  * Creates a Supabase client for Server Components, Server Actions, and Route Handlers.
@@ -36,28 +37,60 @@ export async function createClient() {
  * Uses getClaims() and verifies the user without relying on unvalidated getSession().
  */
 export async function getAuthenticatedUser() {
+  console.log("[CarePath Workspace] initialization started");
+  console.log("[CarePath Workspace] auth started");
+  const authStart = Date.now();
   const supabase = await createClient();
 
   try {
-    // Check JWT claims locally using getClaims()
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+    const claimsStart = Date.now();
+    // Check JWT claims locally using getClaims() if available
+    let claimsData = null;
+    let claimsError = null;
+    
+    if (typeof supabase.auth.getClaims === 'function') {
+        const res = await supabase.auth.getClaims();
+        claimsData = res.data;
+        claimsError = res.error;
+    } else {
+        claimsError = new Error("getClaims not available");
+    }
+    
+    console.log(`[CarePath Workspace] auth getClaims completed in ${Date.now() - claimsStart}ms`);
 
     if (!claimsError && claimsData?.claims?.sub) {
       // Claims verified; retrieve full user record
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const userStart = Date.now();
+      const { data: userData, error: userError } = await withTimeout(
+        supabase.auth.getUser(),
+        5000,
+        "Auth getUser"
+      );
+      console.log(`[CarePath Workspace] auth getUser completed in ${Date.now() - userStart}ms`);
+      
       if (!userError && userData?.user) {
+        console.log(`[CarePath Workspace] auth completed in ${Date.now() - authStart}ms`);
         return { user: userData.user, claims: claimsData.claims, supabase };
       }
     }
 
     // Direct fallback verification with auth server
-    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const fallbackStart = Date.now();
+    const { data: userData, error: userError } = await withTimeout(
+      supabase.auth.getUser(),
+      5000,
+      "Auth fallback getUser"
+    );
+    console.log(`[CarePath Workspace] auth fallback getUser completed in ${Date.now() - fallbackStart}ms`);
+    
     if (!userError && userData?.user) {
+      console.log(`[CarePath Workspace] auth completed in ${Date.now() - authStart}ms`);
       return { user: userData.user, claims: null, supabase };
     }
   } catch (err) {
-    console.error("Auth check failed:", err);
+    console.error("[CarePath Workspace] FAILED: auth", err);
   }
 
+  console.log(`[CarePath Workspace] auth completed (failed) in ${Date.now() - authStart}ms`);
   return { user: null, claims: null, supabase };
 }
